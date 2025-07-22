@@ -1,4 +1,4 @@
 [workspace]
 resolver = "2"
 
-members = ["native/wasmer_ex"]
+members = ["native/wasmer_ex", "tc"]
