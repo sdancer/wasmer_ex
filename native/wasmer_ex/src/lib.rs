@@ -33,8 +33,10 @@ static MODULE_CACHE: OnceLock<Mutex<HashMap<[u8; 32], (Arc<Engine>, Arc<Module>)
 
 static REQ_REGISTRY_STORAGE_KV_GET: LazyLock<Mutex<HashMap<u64, mpsc::Sender<Option<Vec<u8>>>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+
 static REQ_REGISTRY_STORAGE_KV_EXISTS: LazyLock<Mutex<HashMap<u64, mpsc::Sender<bool>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+
 static REQ_REGISTRY_STORAGE_KV_GET_PREV_NEXT: LazyLock<
     Mutex<HashMap<u64, mpsc::Sender<(Option<Vec<u8>>, Option<Vec<u8>>)>>>,
 > = LazyLock::new(|| Mutex::new(HashMap::new()));
@@ -2276,6 +2278,4 @@ fn validate_contract<'a>(
     Ok(atoms::ok().encode(env))
 }
 
-rustler::init!("Elixir.WasmerEx",
-        load = db::load
-);
+rustler::init!("Elixir.WasmerEx", load = db::load);

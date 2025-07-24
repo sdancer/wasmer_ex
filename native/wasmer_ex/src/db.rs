@@ -1,27 +1,27 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
+use rustler::types::atom;
 use rustler::{
     Atom, Binary, Encoder, Env, Error, ListIterator, NifResult, OwnedBinary, ResourceArc, Term,
 };
-use rustler::types::atom;
 use std::sync::Mutex;
 
-use rocksdb::Transaction;
 use rocksdb::BoundColumnFamily;
+use rocksdb::DBCommon;
+use rocksdb::Transaction;
 use rocksdb::{
-    ColumnFamily, ColumnFamilyDescriptor, DBAccess, Direction, IteratorMode, MultiThreaded,
-    OptimisticTransactionDB, OptimisticTransactionOptions, Options, ReadOptions, WriteOptions,
-    DBIterator,
+    ColumnFamily, ColumnFamilyDescriptor, DBAccess, DBIterator, Direction, IteratorMode,
+    MultiThreaded, OptimisticTransactionDB, OptimisticTransactionOptions, Options, ReadOptions,
+    WriteOptions,
 };
 use std::path::Path;
-use rocksdb::DBCommon;
 // --- NIF Resources ---
 use std::sync::Arc;
 
 /// A resource holding a thread-safe reference to an open OptimisticTransactionDB.
 pub struct DbResource {
-    pub db: OptimisticTransactionDB<MultiThreaded>
+    pub db: OptimisticTransactionDB<MultiThreaded>,
 }
 
 /// A resource holding a transaction.
@@ -111,7 +111,10 @@ fn to_nif_err(err: rocksdb::Error) -> Error {
 }
 
 /// A helper to safely get a `ColumnFamily` handle from a `DbResource`.
-fn get_cf_handle<'a>(db_res: &'a DbResource, cf_name: &'a str) -> NifResult<Arc<BoundColumnFamily<'a>>> {
+fn get_cf_handle<'a>(
+    db_res: &'a DbResource,
+    cf_name: &'a str,
+) -> NifResult<Arc<BoundColumnFamily<'a>>> {
     db_res
         .db
         .cf_handle(cf_name)
@@ -180,7 +183,8 @@ fn get_cf<'a>(
     key: Binary,
 ) -> NifResult<Term<'a>> {
     let cf_handle = get_cf_handle(&db_res, &cf_name)?; // This is now an Arc
-    match db_res.db.get_cf(&cf_handle, key.as_slice()) {    // Pass it as a reference
+    match db_res.db.get_cf(&cf_handle, key.as_slice()) {
+        // Pass it as a reference
         Ok(Some(value)) => {
             let mut bin = OwnedBinary::new(value.len()).unwrap();
             bin.as_mut_slice().copy_from_slice(&value);
@@ -192,7 +196,11 @@ fn get_cf<'a>(
 }
 
 #[rustler::nif]
-fn delete_cf(db_res: ResourceArc<DbResource>, cf_name: String, key: Binary) -> NifResult<atom::Atom> {
+fn delete_cf(
+    db_res: ResourceArc<DbResource>,
+    cf_name: String,
+    key: Binary,
+) -> NifResult<atom::Atom> {
     let cf = get_cf_handle(&db_res, &cf_name)?;
     db_res
         .db
@@ -334,4 +342,3 @@ fn iterator_next<'a>(env: Env<'a>, iter_res: ResourceArc<IteratorResource>) -> N
 //    "Elixir.RustlerRocksDB",
 //    load = load
 //}
-
