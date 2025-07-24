@@ -1765,7 +1765,7 @@ fn call<'a>(
             write_to_memory(&memory, &mut store, offset, bytes)?;
 
             let pointer = offset as i32;
-            offset += 4 + length as u64;
+            offset += 4 + bytes.len() as u64;
             wasm_args.push(Value::I32(pointer));
         } else {
             return Err(Error::BadArg);
