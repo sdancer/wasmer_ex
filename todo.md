@@ -1,2 +1,3 @@
 - add temporal write layer
-- add read from rustler
+- add read from rocksdb
+- add flush temporal layer to rocksdb
