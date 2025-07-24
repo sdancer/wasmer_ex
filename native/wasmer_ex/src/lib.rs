@@ -1761,16 +1761,8 @@ fn call<'a>(
             wasm_args.push(Value::I64(i));
         } else if let Ok(b) = term.decode::<Binary>() {
             let bytes = b.as_slice();
-            let length = bytes.len();
 
-            memory
-                .view(&mut store)
-                .write(offset, &(length as i32).to_le_bytes())
-                .map_err(|err| Error::Term(Box::new(err.to_string())))?;
-            memory
-                .view(&mut store)
-                .write(offset + 4, bytes)
-                .map_err(|err| Error::Term(Box::new(err.to_string())))?;
+            write_to_memory(&memory, &mut store, offset, bytes)?;
 
             let pointer = offset as i32;
             offset += 4 + length as u64;
