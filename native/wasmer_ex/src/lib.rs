@@ -2,9 +2,9 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-use wasmer::StoreMut;
 use rustler::types::{Binary, LocalPid, OwnedBinary};
 use rustler::{Atom, Encoder, Env, Error, NifResult, OwnedEnv, ResourceArc, Term};
+use wasmer::StoreMut;
 
 use wasmer::{
     imports,
@@ -295,7 +295,7 @@ fn import_storage_kv_get_implementation(
 ) -> Result<i32, RuntimeError> {
     let cost = (48 + (key_len as u64)) * 100;
 
-   todo!()
+    todo!()
 }
 
 ///EXISTS
@@ -306,7 +306,7 @@ fn import_storage_kv_exists_implementation(
 ) -> Result<i32, RuntimeError> {
     let cost = (48 + (key_len as u64)) * 100;
 
-    todo!() 
+    todo!()
 }
 
 ///PREV
@@ -319,7 +319,7 @@ fn import_storage_kv_get_prev_implementation(
 ) -> Result<i32, RuntimeError> {
     let cost = (48 + (key_len as u64)) * 100;
 
-  todo!()
+    todo!()
 }
 
 ///NEXT
@@ -332,7 +332,7 @@ fn import_storage_kv_get_next_implementation(
 ) -> Result<i32, RuntimeError> {
     let cost = (48 + (key_len as u64)) * 100;
 
-  todo!()
+    todo!()
 }
 
 #[inline]
@@ -391,9 +391,7 @@ fn import_storage_kv_increment_implementation(
         return Err(RuntimeError::new("read_only"));
     }
 
-   todo!()
-
-
+    todo!()
 }
 
 fn import_storage_kv_delete_implementation(
@@ -408,7 +406,7 @@ fn import_storage_kv_delete_implementation(
         return Err(RuntimeError::new("read_only"));
     }
 
-  todo!()
+    todo!()
 }
 
 //CLEAR
@@ -424,8 +422,7 @@ fn import_storage_kv_clear_implementation(
         return Err(RuntimeError::new("read_only"));
     }
 
-  todo!()
-
+    todo!()
 }
 
 //CALL
@@ -1074,7 +1071,9 @@ pub fn run_wasm<'a>(
     function_args: Vec<Term<'a>>,
 ) -> Result<Term<'a>, Error> {
     // Set metering and features
-    let exec_points = mapenv.map_get(atoms::call_exec_points_remaining())?.decode::<u64>()?;
+    let exec_points = mapenv
+        .map_get(atoms::call_exec_points_remaining())?
+        .decode::<u64>()?;
     let metering = Arc::new(Metering::new(exec_points, cost_function));
     let mut compiler = Singlepass::default();
     compiler.canonicalize_nans(true);
@@ -1137,7 +1136,9 @@ pub fn run_wasm<'a>(
     }
 
     // Host environment
-    let current_account = mapenv.map_get(atoms::account_current())?.decode::<Binary>()?;
+    let current_account = mapenv
+        .map_get(atoms::account_current())?
+        .decode::<Binary>()?;
     let host_env = FunctionEnv::new(
         &mut store,
         HostEnv {
@@ -1153,7 +1154,6 @@ pub fn run_wasm<'a>(
             attached_amount: Vec::new(),
 
             writes: HashMap::new(),
-
         },
     );
 
@@ -1202,7 +1202,9 @@ pub fn run_wasm<'a>(
         .map_err(|err| Error::Term(Box::new(err.to_string())))?;
     host_env.as_mut(&mut store).instance = Some(Arc::new(instance.clone()));
 
-    let instance_memory = instance.exports.get_memory("memory")
+    let instance_memory = instance
+        .exports
+        .get_memory("memory")
         .map_err(|err| Error::Term(Box::new(format!("Failed to get memory export: {}", err))))?;
     host_env.as_mut(&mut store).memory = Some(instance_memory.clone());
 
@@ -1398,8 +1400,6 @@ fn call<'a>(
             attached_symbol: Vec::new(),
             attached_amount: Vec::new(),
             writes: HashMap::new(),
-
-
         },
     );
 
@@ -1671,7 +1671,6 @@ fn validate_contract<'a>(
             attached_symbol: Vec::new(),
             attached_amount: Vec::new(),
             writes: HashMap::new(),
-
         },
     );
 
@@ -1736,3 +1735,4 @@ fn validate_contract<'a>(
 }
 
 rustler::init!("Elixir.WasmerEx", load = db::load);
+

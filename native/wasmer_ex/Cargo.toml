@@ -7,7 +7,7 @@ edition = "2021"
 [lib]
 name = "wasmer_ex"
 path = "src/lib.rs"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 rustler = "0.36.1"
