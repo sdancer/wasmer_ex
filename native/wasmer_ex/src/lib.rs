@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
+use wasmer::StoreMut;
 use rustler::types::{Binary, LocalPid, OwnedBinary};
 use rustler::{Atom, Encoder, Env, Error, NifResult, OwnedEnv, ResourceArc, Term};
 
@@ -67,6 +68,8 @@ struct HostEnv {
 
     attached_symbol: Vec<u8>,
     attached_amount: Vec<u8>,
+
+    writes: HashMap<Vec<u8>, Vec<u8>>,
 }
 //unsafe impl Sync for HostEnv<'_> {}
 //unsafe impl Send for HostEnv<'_> {}
@@ -332,6 +335,22 @@ fn import_storage_kv_get_next_implementation(
   todo!()
 }
 
+#[inline]
+fn read_memory(memory: &Memory, store: &StoreMut, ptr: i32) -> Result<Vec<u8>, RuntimeError> {
+    let view = memory.view(store);
+
+    let mut len_bytes = [0u8; 4];
+    view.read(ptr as u64, &mut len_bytes)
+        .map_err(|_| RuntimeError::new("invalid_memory"))?;
+    let len = i32::from_le_bytes(len_bytes) as usize;
+
+    let mut buffer = vec![0u8; len];
+    view.read((ptr as u64) + 4, &mut buffer)
+        .map_err(|_| RuntimeError::new("invalid_memory"))?;
+
+    Ok(buffer)
+}
+
 //PUT
 fn import_storage_kv_put_implementation(
     mut env: FunctionEnvMut<HostEnv>,
@@ -342,12 +361,19 @@ fn import_storage_kv_put_implementation(
 ) -> Result<i32, RuntimeError> {
     let cost = (48 + (key_len as u64) + (val_len as u64)) * 1000;
 
-    let (data, mut store) = env.data_and_store_mut();
+    let (data, store) = env.data_and_store_mut();
     if data.readonly {
         return Err(RuntimeError::new("read_only"));
     }
 
-    todo!() 
+    let memory = data.memory.as_ref().unwrap();
+
+    let key = read_memory(memory, &store, key_ptr)?; // -> Vec<u8>
+    let val = read_memory(memory, &store, val_ptr)?;
+
+    data.writes.insert(key, val);
+
+    Ok(cost.try_into().unwrap())
 }
 
 //INCREMENT
@@ -1125,6 +1151,9 @@ pub fn run_wasm<'a>(
             instance: None,
             attached_symbol: Vec::new(),
             attached_amount: Vec::new(),
+
+            writes: HashMap::new(),
+
         },
     );
 
@@ -1368,6 +1397,9 @@ fn call<'a>(
             instance: None,
             attached_symbol: Vec::new(),
             attached_amount: Vec::new(),
+            writes: HashMap::new(),
+
+
         },
     );
 
@@ -1638,6 +1670,8 @@ fn validate_contract<'a>(
             instance: None,
             attached_symbol: Vec::new(),
             attached_amount: Vec::new(),
+            writes: HashMap::new(),
+
         },
     );
 

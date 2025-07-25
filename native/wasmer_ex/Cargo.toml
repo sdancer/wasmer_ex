@@ -6,6 +6,7 @@ edition = "2021"
 
 [lib]
 name = "wasmer_ex"
+path = "src/lib.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
