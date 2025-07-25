@@ -19,7 +19,7 @@ mod tests {
             )
         "#;
 
-        let wasm_bytes = wat2wasm(wat).expect("Failed to compile WAT");
+        let wasm_bytes = wat2wasm(wat.as_bytes()).expect("Failed to compile WAT");
     }
 }
 
