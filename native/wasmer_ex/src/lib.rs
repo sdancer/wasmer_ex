@@ -1976,138 +1976,38 @@ fn validate_contract<'a>(
     let memory = Memory::new(&mut store, MemoryType::new(Pages(8), None, false))
         .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
 
-    let it1 = mapenv
-        .map_get(atoms::seed())?
-        .decode::<Binary>()?
-        .as_slice();
-    memory
-        .view(&mut store)
-        .write(10_000, &((32 as i32).to_le_bytes()))
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    memory
-        .view(&mut store)
-        .write(10_004, it1)
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    let it2 = mapenv
-        .map_get(atoms::entry_signer())?
-        .decode::<Binary>()?
-        .as_slice();
-    memory
-        .view(&mut store)
-        .write(10_100, &((48 as i32).to_le_bytes()))
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    memory
-        .view(&mut store)
-        .write(10_104, it2)
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    let it3 = mapenv
-        .map_get(atoms::entry_prev_hash())?
-        .decode::<Binary>()?
-        .as_slice();
-    memory
-        .view(&mut store)
-        .write(10_200, &((32 as i32).to_le_bytes()))
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    memory
-        .view(&mut store)
-        .write(10_204, it3)
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    let it4 = mapenv
-        .map_get(atoms::entry_vr())?
-        .decode::<Binary>()?
-        .as_slice();
-    memory
-        .view(&mut store)
-        .write(10_300, &((96 as i32).to_le_bytes()))
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    memory
-        .view(&mut store)
-        .write(10_304, it4)
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    let it5 = mapenv
-        .map_get(atoms::entry_dr())?
-        .decode::<Binary>()?
-        .as_slice();
-    memory
-        .view(&mut store)
-        .write(10_400, &((96 as i32).to_le_bytes()))
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    memory
-        .view(&mut store)
-        .write(10_404, it5)
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    let it6 = mapenv
-        .map_get(atoms::tx_signer())?
-        .decode::<Binary>()?
-        .as_slice();
-    memory
-        .view(&mut store)
-        .write(11_000, &((48 as i32).to_le_bytes()))
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    memory
-        .view(&mut store)
-        .write(11_004, it6)
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    let it7 = mapenv
-        .map_get(atoms::account_current())?
-        .decode::<Binary>()?
-        .as_slice();
-    memory
-        .view(&mut store)
-        .write(12_000, &((it7.len() as i32).to_le_bytes()))
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    memory
-        .view(&mut store)
-        .write(12_004, it7)
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    let it8 = mapenv
-        .map_get(atoms::account_caller())?
-        .decode::<Binary>()?
-        .as_slice();
-    memory
-        .view(&mut store)
-        .write(13_000, &((it8.len() as i32).to_le_bytes()))
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    memory
-        .view(&mut store)
-        .write(13_004, it8)
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    let it9 = mapenv
-        .map_get(atoms::account_origin())?
-        .decode::<Binary>()?
-        .as_slice();
-    memory
-        .view(&mut store)
-        .write(14_000, &((it9.len() as i32).to_le_bytes()))
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    memory
-        .view(&mut store)
-        .write(14_004, it9)
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    let it10 = mapenv
-        .map_get(atoms::attached_symbol())?
-        .decode::<Binary>()?
-        .as_slice();
-    memory
-        .view(&mut store)
-        .write(15_000, &((it10.len() as i32).to_le_bytes()))
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    memory
-        .view(&mut store)
-        .write(15_004, it10)
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    let it11 = mapenv
-        .map_get(atoms::attached_amount())?
-        .decode::<Binary>()?
-        .as_slice();
-    memory
-        .view(&mut store)
-        .write(16_000, &((it11.len() as i32).to_le_bytes()))
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
-    memory
-        .view(&mut store)
-        .write(16_004, it11)
-        .map_err(|err| rustler::Error::Term(Box::new(err.to_string())))?;
+    let it1 = mapenv.map_get(atoms::seed())?.decode::<Binary>()?.as_slice();
+    write_to_memory(&memory, &mut store, 10_000, it1)?;
+
+    let it2 = mapenv.map_get(atoms::entry_signer())?.decode::<Binary>()?.as_slice();
+    write_to_memory(&memory, &mut store, 10_100, it2)?;
+
+    let it3 = mapenv.map_get(atoms::entry_prev_hash())?.decode::<Binary>()?.as_slice();
+    write_to_memory(&memory, &mut store, 10_200, it3)?;
+
+    let it4 = mapenv.map_get(atoms::entry_vr())?.decode::<Binary>()?.as_slice();
+    write_to_memory(&memory, &mut store, 10_300, it4)?;
+
+    let it5 = mapenv.map_get(atoms::entry_dr())?.decode::<Binary>()?.as_slice();
+    write_to_memory(&memory, &mut store, 10_400, it5)?;
+
+    let it6 = mapenv.map_get(atoms::tx_signer())?.decode::<Binary>()?.as_slice();
+    write_to_memory(&memory, &mut store, 11_000, it6)?;
+
+    let it7 = mapenv.map_get(atoms::account_current())?.decode::<Binary>()?.as_slice();
+    write_to_memory(&memory, &mut store, 12_000, it7)?;
+
+    let it8 = mapenv.map_get(atoms::account_caller())?.decode::<Binary>()?.as_slice();
+    write_to_memory(&memory, &mut store, 13_000, it8)?;
+
+    let it9 = mapenv.map_get(atoms::account_origin())?.decode::<Binary>()?.as_slice();
+    write_to_memory(&memory, &mut store, 14_000, it9)?;
+
+    let it10 = mapenv.map_get(atoms::attached_symbol())?.decode::<Binary>()?.as_slice();
+    write_to_memory(&memory, &mut store, 15_000, it10)?;
+
+    let it11 = mapenv.map_get(atoms::attached_amount())?.decode::<Binary>()?.as_slice();
+    write_to_memory(&memory, &mut store, 16_000, it11)?; 
 
     let host_env = FunctionEnv::new(
         &mut store,
