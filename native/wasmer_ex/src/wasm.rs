@@ -57,6 +57,8 @@ pub fn import_storage_kv_get_implementation(
 ) -> Result<i32, RuntimeError> {
     let cost = (48 + (key_len as u64)) * 100;
 
+    // check the mem layer
+    // if not found, check rocksdb
     todo!()
 }
 
@@ -67,6 +69,8 @@ pub fn import_storage_kv_exists_implementation(
 ) -> Result<i32, RuntimeError> {
     let cost = (48 + (key_len as u64)) * 100;
 
+    // check that it wasn't nulled on mem layer
+    // then check in rocksdb
     todo!()
 }
 
@@ -79,6 +83,7 @@ pub fn import_storage_kv_get_prev_implementation(
 ) -> Result<i32, RuntimeError> {
     let cost = (48 + (key_len as u64)) * 100;
 
+    //don't like these prev/next
     todo!()
 }
 
@@ -91,6 +96,7 @@ pub fn import_storage_kv_get_next_implementation(
 ) -> Result<i32, RuntimeError> {
     let cost = (48 + (key_len as u64)) * 100;
 
+    //don't like these prev/next
     todo!()
 }
 
@@ -124,9 +130,6 @@ pub fn import_storage_kv_put_implementation(
         map.insert(key, val);
     }
 
-    // You can also chain it for a one-liner:
-    // data.writes.lock().unwrap().insert(key, val);
-
     Ok(cost.try_into().unwrap())
 }
 
@@ -144,6 +147,8 @@ pub fn import_storage_kv_increment_implementation(
         return Err(RuntimeError::new("read_only"));
     }
 
+    // how do we decode the data to then increment it?
+    //
     todo!()
 }
 
@@ -158,6 +163,8 @@ pub fn import_storage_kv_delete_implementation(
     if data.readonly {
         return Err(RuntimeError::new("read_only"));
     }
+
+    // put a deadstone on mem layer
 
     todo!()
 }

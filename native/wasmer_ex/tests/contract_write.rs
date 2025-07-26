@@ -1,9 +1,9 @@
 #[test]
 fn test_run_wasm_kv_put() {
-    use wasmer::wat2wasm;
-    use wasmer_ex::wasm::{run_wasm, RuntimeEnv, WasmArg};
     use std::collections::HashMap;
     use std::sync::{Arc, RwLock};
+    use wasmer::wat2wasm;
+    use wasmer_ex::wasm::{run_wasm, RuntimeEnv, WasmArg};
 
     // Minimal WASM that calls the imported `import_kv_put` function
     let wat = r#"

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use wasmer::wat2wasm;
 
-use wasmer_ex::wasm::{run_wasm, RuntimeEnv, WasmArg};
 use std::sync::{Arc, RwLock};
+use wasmer_ex::wasm::{run_wasm, RuntimeEnv, WasmArg};
 
 #[test]
 fn test_run_wasm_minimal() {
