@@ -1063,18 +1063,50 @@ fn write_to_memory(
 
 use wasmer::CompilerConfig;
 
-pub fn run_wasm<'a>(
-    env: Env<'a>,
-    mapenv: Term<'a>,
-    wasm_bytes: Binary,
-    function_name: String,
-    function_args: Vec<Term<'a>>,
-) -> Result<Term<'a>, Error> {
-    // Set metering and features
-    let exec_points = mapenv
-        .map_get(atoms::call_exec_points_remaining())?
-        .decode::<u64>()?;
+#[derive(Debug, Clone)]
+pub struct RuntimeEnv {
+    pub seed: Vec<u8>,
+    pub entry_signer: Vec<u8>,
+    pub entry_prev_hash: Vec<u8>,
+    pub entry_vr: Vec<u8>,
+    pub entry_dr: Vec<u8>,
+    pub tx_signer: Vec<u8>,
+    pub account_current: Vec<u8>,
+    pub account_caller: Vec<u8>,
+    pub account_origin: Vec<u8>,
+    pub attached_symbol: Vec<u8>,
+    pub attached_amount: Vec<u8>,
+
+    pub readonly: bool,
+    pub call_exec_points_remaining: u64,
+
+    pub entry_slot: i64,
+    pub entry_prev_slot: i64,
+    pub entry_height: i64,
+    pub entry_epoch: i64,
+    pub tx_nonce: i64,
+
+    pub seedf64: f64,
+}
+
+#[derive(Debug, Clone)]
+pub enum WasmArg {
+    I64(i64),
+    Bytes(Vec<u8>),
+}
+
+pub fn run_wasm(
+    env: &RuntimeEnv,
+    wasm_bytes: &[u8],
+    function_name: &str,
+    function_args: &[WasmArg],
+) -> Result<(), Error> {
+    // ---------------------------------------------------------------------
+    // 1. metering / compiler setup
+    // ---------------------------------------------------------------------
+    let exec_points = env.call_exec_points_remaining;
     let metering = Arc::new(Metering::new(exec_points, cost_function));
+
     let mut compiler = Singlepass::default();
     compiler.canonicalize_nans(true);
     compiler.push_middleware(metering);
@@ -1089,166 +1121,148 @@ pub fn run_wasm<'a>(
     features.multi_memory(false);
     features.memory64(false);
 
-    let engine = EngineBuilder::new(compiler).set_features(Some(features));
+    let engine   = wasmer::EngineBuilder::new(compiler).set_features(Some(features));
     let mut store = Store::new(engine);
 
-    // Compile module
-    let module = Module::new(&store, &wasm_bytes.as_slice())
-        .map_err(|err| Error::Term(Box::new(err.to_string())))?;
+    // ---------------------------------------------------------------------
+    // 2. compile module & create linear memory
+    // ---------------------------------------------------------------------
+    let module = Module::new(&store, wasm_bytes)
+        .map_err(|e| Error::Term(Box::new(e.to_string())))?;
 
-    // Create memory and write known keys
     let memory = Memory::new(&mut store, MemoryType::new(Pages(8), None, false))
-        .map_err(|err| Error::Term(Box::new(err.to_string())))?;
+        .map_err(|e| Error::Term(Box::new(e.to_string())))?;
 
-    let keys = [
-        (atoms::seed(), 10_000),
-        (atoms::entry_signer(), 10_100),
-        (atoms::entry_prev_hash(), 10_200),
-        (atoms::entry_vr(), 10_300),
-        (atoms::entry_dr(), 10_400),
-        (atoms::tx_signer(), 11_000),
-        (atoms::account_current(), 12_000),
-        (atoms::account_caller(), 13_000),
-        (atoms::account_origin(), 14_000),
-        (atoms::attached_symbol(), 15_000),
-        (atoms::attached_amount(), 16_000),
+    // ---------------------------------------------------------------------
+    // 3. write predefined keys/values into guest memory
+    // ---------------------------------------------------------------------
+    let keys: &[(&[u8], u64)] = &[
+        (&env.seed,            10_000),
+        (&env.entry_signer,    10_100),
+        (&env.entry_prev_hash, 10_200),
+        (&env.entry_vr,        10_300),
+        (&env.entry_dr,        10_400),
+        (&env.tx_signer,       11_000),
+        (&env.account_current, 12_000),
+        (&env.account_caller,  13_000),
+        (&env.account_origin,  14_000),
+        (&env.attached_symbol, 15_000),
+        (&env.attached_amount, 16_000),
     ];
 
-    for (atom, offset) in keys {
-        let data = mapenv.map_get(atom)?.decode::<Binary>()?;
-        write_to_memory(&memory, &mut store, offset, data.as_slice())?;
+    for (bytes, offset) in keys {
+        write_to_memory(&memory, &mut store, *offset, bytes)?;
     }
 
-    // Process function arguments
-    let mut offset = 20_000;
-    let mut wasm_args = Vec::with_capacity(function_args.len());
+    // ---------------------------------------------------------------------
+    // 4. process function arguments
+    // ---------------------------------------------------------------------
+    let mut offset: u64 = 20_000;
+    let mut wasm_args   = Vec::with_capacity(function_args.len());
 
-    for term in &function_args {
-        if let Ok(i) = term.decode::<i64>() {
-            wasm_args.push(Value::I64(i));
-        } else if let Ok(b) = term.decode::<Binary>() {
-            write_to_memory(&memory, &mut store, offset, b.as_slice())?;
-            wasm_args.push(Value::I32(offset as i32));
-            offset += 4 + b.as_slice().len() as u64;
-        } else {
-            return Err(Error::BadArg);
+    for arg in function_args {
+        match arg {
+            WasmArg::I64(i) => wasm_args.push(Value::I64(*i)),
+            WasmArg::Bytes(b) => {
+                write_to_memory(&memory, &mut store, offset, b)?;
+                wasm_args.push(Value::I32(offset as i32));
+                offset += 4 + b.len() as u64;
+            }
         }
     }
 
-    // Host environment
-    let current_account = mapenv
-        .map_get(atoms::account_current())?
-        .decode::<Binary>()?;
-    let host_env = FunctionEnv::new(
+    // ---------------------------------------------------------------------
+    // 5. build host-environment + import object
+    // ---------------------------------------------------------------------
+    let mut host_env = FunctionEnv::new(
         &mut store,
         HostEnv {
             memory: None,
             error: None,
             return_value: None,
             logs: vec![],
-            readonly: mapenv.map_get(atoms::readonly())?.decode::<bool>()?,
+            readonly: env.readonly,
             rpc_pid: None,
-            current_account: current_account.as_slice().to_vec(),
+            current_account: env.account_current.clone(),
             instance: None,
             attached_symbol: Vec::new(),
             attached_amount: Vec::new(),
-
             writes: HashMap::new(),
         },
     );
 
-    // Create imports
     let import_object = imports! {
         "env" => {
-            "memory" => memory,
-            "seed_ptr" => Global::new(&mut store, Value::I32(10_000)),
-            "entry_signer_ptr" => Global::new(&mut store, Value::I32(10_100)),
-            "entry_prev_hash_ptr" => Global::new(&mut store, Value::I32(10_200)),
-            "entry_slot" => Global::new(&mut store, Value::I64(mapenv.map_get(atoms::entry_slot())?.decode()?)),
-            "entry_prev_slot" => Global::new(&mut store, Value::I64(mapenv.map_get(atoms::entry_prev_slot())?.decode()?)),
-            "entry_height" => Global::new(&mut store, Value::I64(mapenv.map_get(atoms::entry_height())?.decode()?)),
-            "entry_epoch" => Global::new(&mut store, Value::I64(mapenv.map_get(atoms::entry_epoch())?.decode()?)),
-            "entry_vr_ptr" => Global::new(&mut store, Value::I32(10_300)),
-            "entry_dr_ptr" => Global::new(&mut store, Value::I32(10_400)),
-            "tx_signer_ptr" => Global::new(&mut store, Value::I32(11_000)),
-            "tx_nonce" => Global::new(&mut store, Value::I64(mapenv.map_get(atoms::tx_nonce())?.decode()?)),
-            "account_current_ptr" => Global::new(&mut store, Value::I32(12_000)),
-            "account_caller_ptr" => Global::new(&mut store, Value::I32(13_000)),
-            "account_origin_ptr" => Global::new(&mut store, Value::I32(14_000)),
-            "attached_symbol_ptr" => Global::new(&mut store, Value::I32(15_000)),
-            "attached_amount_ptr" => Global::new(&mut store, Value::I32(16_000)),
-            "import_attach" => Function::new_typed_with_env(&mut store, &host_env, import_attach_implementation),
-            "import_log" => Function::new_typed_with_env(&mut store, &host_env, import_log_implementation),
-            "import_return_value" => Function::new_typed_with_env(&mut store, &host_env, import_return_value_implementation),
-            "import_call_0" => Function::new_typed_with_env(&mut store, &host_env, import_call_0_implementation),
-            "import_call_1" => Function::new_typed_with_env(&mut store, &host_env, import_call_1_implementation),
-            "import_call_2" => Function::new_typed_with_env(&mut store, &host_env, import_call_2_implementation),
-            "import_call_3" => Function::new_typed_with_env(&mut store, &host_env, import_call_3_implementation),
-            "import_call_4" => Function::new_typed_with_env(&mut store, &host_env, import_call_4_implementation),
-            "import_kv_put" => Function::new_typed_with_env(&mut store, &host_env, import_storage_kv_put_implementation),
-            "import_kv_increment" => Function::new_typed_with_env(&mut store, &host_env, import_storage_kv_increment_implementation),
-            "import_kv_delete" => Function::new_typed_with_env(&mut store, &host_env, import_storage_kv_delete_implementation),
-            "import_kv_clear" => Function::new_typed_with_env(&mut store, &host_env, import_storage_kv_clear_implementation),
-            "import_kv_get" => Function::new_typed_with_env(&mut store, &host_env, import_storage_kv_get_implementation),
-            "import_kv_exists" => Function::new_typed_with_env(&mut store, &host_env, import_storage_kv_exists_implementation),
-            "import_kv_get_prev" => Function::new_typed_with_env(&mut store, &host_env, import_storage_kv_get_prev_implementation),
-            "import_kv_get_next" => Function::new_typed_with_env(&mut store, &host_env, import_storage_kv_get_next_implementation),
-            "abort" => Function::new_typed_with_env(&mut store, &host_env, abort_implementation),
-            "seed" => Global::new(&mut store, Value::F64(mapenv.map_get(atoms::seedf64())?.decode()?)),
+            "memory"                => memory,
+            "seed_ptr"              => Global::new(&mut store, Value::I32(10_000)),
+            "entry_signer_ptr"      => Global::new(&mut store, Value::I32(10_100)),
+            "entry_prev_hash_ptr"   => Global::new(&mut store, Value::I32(10_200)),
+            "entry_slot"            => Global::new(&mut store, Value::I64(env.entry_slot)),
+            "entry_prev_slot"       => Global::new(&mut store, Value::I64(env.entry_prev_slot)),
+            "entry_height"          => Global::new(&mut store, Value::I64(env.entry_height)),
+            "entry_epoch"           => Global::new(&mut store, Value::I64(env.entry_epoch)),
+            "entry_vr_ptr"          => Global::new(&mut store, Value::I32(10_300)),
+            "entry_dr_ptr"          => Global::new(&mut store, Value::I32(10_400)),
+            "tx_signer_ptr"         => Global::new(&mut store, Value::I32(11_000)),
+            "tx_nonce"              => Global::new(&mut store, Value::I64(env.tx_nonce)),
+            "account_current_ptr"   => Global::new(&mut store, Value::I32(12_000)),
+            "account_caller_ptr"    => Global::new(&mut store, Value::I32(13_000)),
+            "account_origin_ptr"    => Global::new(&mut store, Value::I32(14_000)),
+            "attached_symbol_ptr"   => Global::new(&mut store, Value::I32(15_000)),
+            "attached_amount_ptr"   => Global::new(&mut store, Value::I32(16_000)),
+
+            // ---- host functions (unchanged, shown for context) ----
+            "import_attach"         => Function::new_typed_with_env(&mut store, &host_env, import_attach_implementation),
+            "import_log"            => Function::new_typed_with_env(&mut store, &host_env, import_log_implementation),
+            "import_return_value"   => Function::new_typed_with_env(&mut store, &host_env, import_return_value_implementation),
+            "import_call_0"         => Function::new_typed_with_env(&mut store, &host_env, import_call_0_implementation),
+            "import_call_1"         => Function::new_typed_with_env(&mut store, &host_env, import_call_1_implementation),
+            "import_call_2"         => Function::new_typed_with_env(&mut store, &host_env, import_call_2_implementation),
+            "import_call_3"         => Function::new_typed_with_env(&mut store, &host_env, import_call_3_implementation),
+            "import_call_4"         => Function::new_typed_with_env(&mut store, &host_env, import_call_4_implementation),
+            "import_kv_put"         => Function::new_typed_with_env(&mut store, &host_env, import_storage_kv_put_implementation),
+            "import_kv_increment"   => Function::new_typed_with_env(&mut store, &host_env, import_storage_kv_increment_implementation),
+            "import_kv_delete"      => Function::new_typed_with_env(&mut store, &host_env, import_storage_kv_delete_implementation),
+            "import_kv_clear"       => Function::new_typed_with_env(&mut store, &host_env, import_storage_kv_clear_implementation),
+            "import_kv_get"         => Function::new_typed_with_env(&mut store, &host_env, import_storage_kv_get_implementation),
+            "import_kv_exists"      => Function::new_typed_with_env(&mut store, &host_env, import_storage_kv_exists_implementation),
+            "import_kv_get_prev"    => Function::new_typed_with_env(&mut store, &host_env, import_storage_kv_get_prev_implementation),
+            "import_kv_get_next"    => Function::new_typed_with_env(&mut store, &host_env, import_storage_kv_get_next_implementation),
+            "abort"                => Function::new_typed_with_env(&mut store, &host_env, abort_implementation),
+            "seed"                  => Global::new(&mut store, Value::F64(env.seedf64)),
         }
     };
 
+    // ---------------------------------------------------------------------
+    // 6. instantiate & invoke
+    // ---------------------------------------------------------------------
     let instance = Instance::new(&mut store, &module, &import_object)
-        .map_err(|err| Error::Term(Box::new(err.to_string())))?;
+        .map_err(|e| Error::Term(Box::new(e.to_string())))?;
     host_env.as_mut(&mut store).instance = Some(Arc::new(instance.clone()));
 
-    let instance_memory = instance
-        .exports
-        .get_memory("memory")
-        .map_err(|err| Error::Term(Box::new(format!("Failed to get memory export: {}", err))))?;
+    let instance_memory = instance.exports.get_memory("memory")
+        .map_err(|e| Error::Term(Box::new(format!("Failed to get memory export: {}", e))))?;
     host_env.as_mut(&mut store).memory = Some(instance_memory.clone());
 
-    let entry_to_call = instance
-        .exports
-        .get_function(&function_name)
-        .map_err(|err| Error::Term(Box::new(err.to_string())))?;
+    let entry_to_call = instance.exports.get_function(function_name)
+        .map_err(|e| Error::Term(Box::new(e.to_string())))?;
 
     let call_result = entry_to_call.call(&mut store, &wasm_args);
+
+    // meter
     let remaining_u64 = match get_remaining_points(&mut store, &instance) {
-        MeteringPoints::Remaining(value) => value,
-        MeteringPoints::Exhausted => 0,
+        MeteringPoints::Remaining(v) => v,
+        MeteringPoints::Exhausted    => 0,
     };
 
-    let data = host_env.as_ref(&store);
-    let encoded_logs: Vec<Binary> = data
-        .logs
-        .iter()
-        .map(|bytes| {
-            let mut bin = OwnedBinary::new(bytes.len()).unwrap();
-            bin.as_mut_slice().copy_from_slice(bytes);
-            Binary::from_owned(bin, env)
-        })
-        .collect();
+    // you can still plumb `logs`, `return_value`, etc. exactly as before.
+    // For this minimal port we keep the same external contract:
+    let _ = call_result;          // ignored on purpose
+    let _ = remaining_u64;        // ditto
 
-    let return_value = match &data.return_value {
-        Some(bytes) => {
-            let mut owned = OwnedBinary::new(bytes.len()).unwrap();
-            owned.as_mut_slice().copy_from_slice(&bytes);
-            Binary::from_owned(owned, env).encode(env)
-        }
-        None => atoms::nil().encode(env),
-    };
+    println!("{:?}", call_result);
 
-    //let payload = (
-    //    atoms::result(),
-    //    match call_result {
-    //        Err(err) => (err.message(), encoded_logs, remaining_u64, return_value),
-    //        Ok(_) => (atoms::nil(), encoded_logs, remaining_u64, atoms::nil()),
-    //    },
-    //);
-
-    //let _ = env.send(&rpc_pid, payload.encode(env));
-    Ok(atoms::ok().encode(env))
+    Ok(())
 }
 
 #[rustler::nif(schedule = "DirtyCpu")]
@@ -1735,4 +1749,3 @@ fn validate_contract<'a>(
 }
 
 rustler::init!("Elixir.WasmerEx", load = db::load);
-
