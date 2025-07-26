@@ -24,6 +24,8 @@ use std::collections::HashMap;
 use std::sync::{mpsc, LazyLock};
 use std::time::{Duration, SystemTime};
 
+use std::sync::RwLock;
+
 #[derive(Debug, Clone, Copy)]
 pub struct ExitCode(u32);
 
@@ -43,7 +45,7 @@ pub struct HostEnv {
     pub attached_symbol: Vec<u8>,
     pub attached_amount: Vec<u8>,
 
-    pub writes: HashMap<Vec<u8>, Vec<u8>>,
+    pub writes: Arc<RwLock<HashMap<Vec<u8>, Vec<u8>>>>,
 }
 //unsafe impl Sync for HostEnv<'_> {}
 //unsafe impl Send for HostEnv<'_> {}
@@ -106,12 +108,24 @@ pub fn import_storage_kv_put_implementation(
         return Err(RuntimeError::new("read_only"));
     }
 
-    let memory = data.memory.as_ref().unwrap();
+    let memory = match data.memory.as_ref() {
+        Some(mem) => mem,
+        None => return Err(RuntimeError::new("memory not found")),
+    };
 
-    let key = read_memory(memory, &store, key_ptr)?; // -> Vec<u8>
+    let key = read_memory(memory, &store, key_ptr)?;
     let val = read_memory(memory, &store, val_ptr)?;
 
-    data.writes.insert(key, val);
+    {
+        let mut map = data
+            .writes // Arc<RwLock<_>>
+            .write() // -> Result<RwLockWriteGuard<_>, _>
+            .expect("lock poisoned"); // RwLockWriteGuard derefs to &mut HashMap
+        map.insert(key, val);
+    }
+
+    // You can also chain it for a one-liner:
+    // data.writes.lock().unwrap().insert(key, val);
 
     Ok(cost.try_into().unwrap())
 }
@@ -640,6 +654,7 @@ pub fn run_wasm(
     wasm_bytes: &[u8],
     function_name: &str,
     function_args: &[WasmArg],
+    write_layer: Arc<RwLock<HashMap<Vec<u8>, Vec<u8>>>>,
 ) -> Result<(), Error> {
     // ---------------------------------------------------------------------
     // 1. metering / compiler setup
@@ -727,7 +742,7 @@ pub fn run_wasm(
             instance: None,
             attached_symbol: Vec::new(),
             attached_amount: Vec::new(),
-            writes: HashMap::new(),
+            writes: write_layer,
         },
     );
 
@@ -799,8 +814,6 @@ pub fn run_wasm(
         MeteringPoints::Exhausted => 0,
     };
 
-    // you can still plumb `logs`, `return_value`, etc. exactly as before.
-    // For this minimal port we keep the same external contract:
     let _ = call_result; // ignored on purpose
     let _ = remaining_u64; // ditto
 

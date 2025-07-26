@@ -48,9 +48,9 @@ struct IteratorResource {
 
 pub fn load(env: Env, _: Term) -> bool {
     // Use the `resource!` macro to implement the `Resource` trait for your structs.
-    rustler::resource!(DbResource, env);
-    rustler::resource!(TransactionResource, env);
-    rustler::resource!(IteratorResource, env); // Don't forget this one too!
+    let _ = rustler::resource!(DbResource, env);
+    let _ = rustler::resource!(TransactionResource, env);
+    let _ = rustler::resource!(IteratorResource, env); // Don't forget this one too!
     true
 }
 
