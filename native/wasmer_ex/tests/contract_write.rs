@@ -3,7 +3,7 @@ fn test_run_wasm_kv_put() {
     use std::collections::HashMap;
     use std::sync::{Arc, RwLock};
     use wasmer::wat2wasm;
-    use wasmer_ex::wasm::{run_wasm, RuntimeEnv, WasmArg};
+    use wasmer_ex::wasm::{run_wasm, RuntimeEnv, WasmArg, Layer};
 
     // Minimal WASM that calls the imported `import_kv_put` function
     let wat = r#"
@@ -51,11 +51,12 @@ fn test_run_wasm_kv_put() {
 
     let args = vec![]; // `main` takes no parameters
 
-    let writes: Arc<RwLock<HashMap<Vec<u8>, Vec<u8>>>> = Arc::new(RwLock::new(HashMap::new()));
+    let writes: Arc<RwLock<Layer>> = Arc::new(RwLock::new(HashMap::new()));
     let result = run_wasm(&env, &wasm_bytes, "main", &args, Arc::clone(&writes));
 
     assert!(result.is_ok());
 
     let map = writes.read().unwrap();
-    assert_eq!(map.get(b"test".as_ref()), Some(&b"value".to_vec()));
+    let rv = map.get(b"test".as_ref()).unwrap().clone();
+    assert_eq!(rv, Some(b"value".to_vec()));
 }

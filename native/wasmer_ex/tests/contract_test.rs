@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use wasmer::wat2wasm;
 
 use std::sync::{Arc, RwLock};
-use wasmer_ex::wasm::{run_wasm, RuntimeEnv, WasmArg};
+use wasmer_ex::wasm::{run_wasm, RuntimeEnv, WasmArg, Layer};
 
 #[test]
 fn test_run_wasm_minimal() {
@@ -46,7 +46,7 @@ fn test_run_wasm_minimal() {
     let args = vec![WasmArg::I64(42)];
 
     // --- invoke ----
-    let write_layer: Arc<RwLock<HashMap<Vec<u8>, Vec<u8>>>> = Arc::new(RwLock::new(HashMap::new()));
+    let write_layer: Arc<RwLock<Layer>> = Arc::new(RwLock::new(HashMap::new()));
     let res = run_wasm(&env, &wasm_bytes, "add_one", &args, write_layer);
     assert!(res.is_ok());
 }

@@ -29,6 +29,8 @@ use std::sync::RwLock;
 #[derive(Debug, Clone, Copy)]
 pub struct ExitCode(u32);
 
+pub type Layer = HashMap<Vec<u8>, Option<Vec<u8>>>;
+
 #[derive(Clone)]
 //struct HostEnv<'a> {
 pub struct HostEnv {
@@ -45,7 +47,7 @@ pub struct HostEnv {
     pub attached_symbol: Vec<u8>,
     pub attached_amount: Vec<u8>,
 
-    pub writes: Arc<RwLock<HashMap<Vec<u8>, Vec<u8>>>>,
+    pub writes: Arc<RwLock<Layer>>,
 }
 //unsafe impl Sync for HostEnv<'_> {}
 //unsafe impl Send for HostEnv<'_> {}
@@ -127,7 +129,7 @@ pub fn import_storage_kv_put_implementation(
             .writes // Arc<RwLock<_>>
             .write() // -> Result<RwLockWriteGuard<_>, _>
             .expect("lock poisoned"); // RwLockWriteGuard derefs to &mut HashMap
-        map.insert(key, val);
+        map.insert(key, Some(val));
     }
 
     Ok(cost.try_into().unwrap())
@@ -661,7 +663,7 @@ pub fn run_wasm(
     wasm_bytes: &[u8],
     function_name: &str,
     function_args: &[WasmArg],
-    write_layer: Arc<RwLock<HashMap<Vec<u8>, Vec<u8>>>>,
+    write_layer: Arc<RwLock<Layer>>,
 ) -> Result<(), Error> {
     // ---------------------------------------------------------------------
     // 1. metering / compiler setup
@@ -821,8 +823,8 @@ pub fn run_wasm(
         MeteringPoints::Exhausted => 0,
     };
 
-    let _ = call_result; // ignored on purpose
-    let _ = remaining_u64; // ditto
+    let _ = call_result;
+    let _ = remaining_u64;
 
     println!("result? {:?}", call_result);
 
