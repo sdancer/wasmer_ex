@@ -3,24 +3,22 @@ use eetf::Term;
 use std::{env, error::Error};
 use std::io::Cursor;
 
-/// 32‑byte hash of the genesis entry (copy‑paste from your note)
+/// 32-byte hash of the genesis entry (copy-paste from your note)
 const GENESIS_HASH: [u8; 32] = [
-    250, 154, 199, 170, 114, 250, 155,  84,
-      2, 215,  37, 236, 138,  98,  19,  87,
-     19, 163,  21, 138, 131, 205, 205, 189,
-    176, 217,   5, 112, 225,  13,  15, 217,
+    250, 154, 199, 170, 114, 250, 155,  84,  2, 215,  37, 236, 138,  98,  19,  87,
+     19, 163,  21, 138, 131, 205, 205, 189, 176, 217,   5, 112, 225,  13,  15, 217,
 ];
 
 fn main() -> Result<(), Box<dyn Error>> {
     // ------------------------------------------------------------------ CLI
     let db_path = env::args()
         .nth(1)
-        .expect("Usage: inspect_genesis <path‑to‑rocksdb>");
+        .expect("Usage: inspect_genesis <path-to-rocksdb>");
     println!("Opening RocksDB at {db_path}");
 
     // ------------------------------------------------------------------ DB
     let opts = Options::default();
-    // We only need the default CF, but open all in case others exist
+    // We only need the default CF, but open all in case others exist
     let cf_names = DB::list_cf(&opts, &db_path)?;
     let db       = DB::open_cf_for_read_only(&opts, &db_path, &cf_names, /*error_if_log_file_exists*/ false)?;
 
@@ -31,16 +29,25 @@ fn main() -> Result<(), Box<dyn Error>> {
     // ------------------------------------------------------------------ lookup
     match db.get_cf(&default_cf, GENESIS_HASH)? {
         Some(val) => {
-            // ----------------------------------------------------------- decode
+            // ----------------------------------------------------------- decode root term
             let term = Term::decode(Cursor::new(&val))
                 .map_err(|e| format!("ETF decode failed: {e}"))?;
             println!("\n=== Genesis entry decoded ===\n{:#?}", term);
 
-            // (Optional) pull out the header sub‑map for quick inspection
+            // ----------------------------------------------------------- header sub-map
             if let Term::Map(map) = &term {
                 let header_key = Term::Atom("header".into());
                 if let Some(header_term) = map.map.get(&header_key) {
-                    println!("\nHeader field:\n{:#?}", header_term);
+                    match header_term {
+                        // >>> NEW: decode the *inner* binary <<<
+                        Term::Binary(bin) => {
+                            let header_decoded = Term::decode(Cursor::new(&bin.bytes))
+                                .map_err(|e| format!("ETF decode (header) failed: {e}"))?;
+                            println!("\n=== Header decoded ===\n{:#?}", header_decoded);
+                        }
+                        // Fallback: not a binary – print whatever it is
+                        other => println!("\nHeader field is not binary:\n{:#?}", other),
+                    }
                 }
             }
         }
@@ -49,3 +56,4 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
