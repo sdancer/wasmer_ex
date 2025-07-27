@@ -31,6 +31,8 @@ pub struct ExitCode(u32);
 
 pub type Layer = HashMap<Vec<u8>, Option<Vec<u8>>>;
 
+use crate::db::DbResource;
+
 #[derive(Clone)]
 //struct HostEnv<'a> {
 pub struct HostEnv {
@@ -48,6 +50,7 @@ pub struct HostEnv {
     pub attached_amount: Vec<u8>,
 
     pub writes: Arc<RwLock<Layer>>,
+    pub db: Arc<DbResource>,
 }
 //unsafe impl Sync for HostEnv<'_> {}
 //unsafe impl Send for HostEnv<'_> {}
@@ -752,6 +755,7 @@ pub fn run_wasm(
             attached_symbol: Vec::new(),
             attached_amount: Vec::new(),
             writes: write_layer,
+            db: ...,
         },
     );
 
