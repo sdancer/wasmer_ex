@@ -30,6 +30,7 @@ use std::time::{Duration, SystemTime};
 
 pub mod atoms;
 pub mod db;
+pub mod entry;
 pub mod wasm;
 
 static MODULE_CACHE: OnceLock<Mutex<HashMap<[u8; 32], (Arc<Engine>, Arc<Module>)>>> =

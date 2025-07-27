@@ -667,6 +667,7 @@ pub fn run_wasm(
     function_name: &str,
     function_args: &[WasmArg],
     write_layer: Arc<RwLock<Layer>>,
+    db: Arc<DbResource>,
 ) -> Result<(), Error> {
     // ---------------------------------------------------------------------
     // 1. metering / compiler setup
@@ -741,7 +742,7 @@ pub fn run_wasm(
     // ---------------------------------------------------------------------
     // 5. build host-environment + import object
     // ---------------------------------------------------------------------
-    let mut host_env = FunctionEnv::new(
+    let host_env = FunctionEnv::new(
         &mut store,
         HostEnv {
             memory: None,
@@ -755,7 +756,7 @@ pub fn run_wasm(
             attached_symbol: Vec::new(),
             attached_amount: Vec::new(),
             writes: write_layer,
-            db: ...,
+            db,
         },
     );
 

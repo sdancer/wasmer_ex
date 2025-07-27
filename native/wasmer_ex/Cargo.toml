@@ -18,3 +18,7 @@ wasmer-compiler-singlepass = "5.0.4"
 wasmer-middlewares = "5.0.4"
 rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb", branch = "master" }
 lazy_static = "1.4.0"
+eetf    = "0.10"
+bs58    = "0.5"
+num-bigint = "0.4.6"
+num-traits = "0.2.19"

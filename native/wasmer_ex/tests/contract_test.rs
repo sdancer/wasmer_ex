@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use wasmer::wat2wasm;
 
 use std::sync::{Arc, RwLock};
-use wasmer_ex::wasm::{run_wasm, RuntimeEnv, WasmArg, Layer};
+use wasmer_ex::wasm::{run_wasm, Layer, RuntimeEnv, WasmArg};
 
 #[test]
 fn test_run_wasm_minimal() {
