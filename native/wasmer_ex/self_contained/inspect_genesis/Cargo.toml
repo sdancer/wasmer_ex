@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb", branch = "master" }
 eetf    = "0.10"
+bs58    = "0.5"
