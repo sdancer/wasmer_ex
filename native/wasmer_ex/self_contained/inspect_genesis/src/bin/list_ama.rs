@@ -1,13 +1,14 @@
 use rocksdb::{Options, DB, IteratorMode};
 use std::{env, error::Error, str};
+use bs58;
 
 /// ASCII prefix and suffix we’re interested in
 const PREFIX: &[u8] = b"bic:coin:balance:";
 const SUFFIX: &[u8] = b":AMA";
 
-/// Convert raw bytes → continuous upper-case hex string
-fn hexdump(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{:02X}", b)).collect()
+/// Convert raw bytes → Base58 string
+fn to_base58(bytes: &[u8]) -> String {
+    bs58::encode(bytes).into_string()
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -53,8 +54,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     // ---------------- print
     for (n, core_key) in rows {
         let amount = n as f64 / 1e9;                   // convert to “coins” (10^9 divider)
-        println!("{} => {}", hexdump(&core_key), amount);
+        println!("{} => {}", to_base58(&core_key), amount);
     }
 
     Ok(())
 }
+
