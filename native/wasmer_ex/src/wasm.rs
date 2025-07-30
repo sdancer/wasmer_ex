@@ -56,7 +56,7 @@ pub struct HostEnv {
 //unsafe impl Send for HostEnv<'_> {}
 
 pub fn import_storage_kv_get_implementation(
-    mut env: FunctionEnvMut<HostEnv>,
+    env: FunctionEnvMut<HostEnv>,
     key_ptr: i32,
     key_len: i32,
 ) -> Result<i32, RuntimeError> {

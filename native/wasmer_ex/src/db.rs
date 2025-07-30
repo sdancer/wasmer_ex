@@ -47,10 +47,9 @@ struct IteratorResource {
 }
 
 pub fn load(env: Env, _: Term) -> bool {
-    // Use the `resource!` macro to implement the `Resource` trait for your structs.
     let _ = rustler::resource!(DbResource, env);
     let _ = rustler::resource!(TransactionResource, env);
-    let _ = rustler::resource!(IteratorResource, env); // Don't forget this one too!
+    let _ = rustler::resource!(IteratorResource, env);
     true
 }
 
@@ -165,9 +164,6 @@ fn put_cf(
     // `get_cf_handle` now returns an `Arc<ColumnFamily>`.
     let cf_handle: Arc<BoundColumnFamily> = get_cf_handle(&db_res, &cf_name)?;
 
-    // When we pass `cf_handle` to `put_cf`, the compiler automatically
-    // dereferences it from `Arc<ColumnFamily>` to the `&ColumnFamily` that the method expects.
-    // No change is needed in this line!
     db_res
         .db
         .put_cf(&cf_handle, key.as_slice(), value.as_slice())
